@@ -1,0 +1,1 @@
+Ver6.6：iPhone/LINE内ブラウザで「オリジナル保存」が白い画面で固まりにくいよう、Google Driveのファイル表示URLに変更しました。\n\nCloudflare PagesへこのZIPをアップロードしてください。\nApps Script更新は必須ではありません。\n

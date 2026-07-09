@@ -1,0 +1,106 @@
+const SPREADSHEET_ID = "ここにスプレッドシートIDを省略なしで入れる";
+const SHEET_NAME = "Plain text i&u online album管理表";
+const ADMIN_KEY = "iu2026";
+
+function doGet(e) {
+  const action = e.parameter.action || "album";
+  const callback = e.parameter.callback;
+
+  if (action === "add") {
+    return addAlbum(e, callback);
+  }
+
+  return getAlbum(e, callback);
+}
+
+function addAlbum(e, callback) {
+  if (e.parameter.key !== ADMIN_KEY) {
+    return output({ ok: false, error: "管理キーが違います" }, callback);
+  }
+
+  const sheet = SpreadsheetApp.openById(SPREADSHEET_ID).getSheetByName(SHEET_NAME);
+  const slug = e.parameter.slug;
+
+  if (!slug) {
+    return output({ ok: false, error: "slugがありません" }, callback);
+  }
+
+  const values = sheet.getDataRange().getValues();
+  const headers = values[0];
+  const slugIndex = headers.indexOf("slug");
+
+  for (let i = 1; i < values.length; i++) {
+    if (String(values[i][slugIndex]) === String(slug)) {
+      return output({ ok: false, error: "同じslugがすでにあります" }, callback);
+    }
+  }
+
+  sheet.appendRow([
+    slug,
+    e.parameter.title || "",
+    e.parameter.shootDate || "",
+    e.parameter.limitDate || "",
+    e.parameter.folderId || "",
+    e.parameter.password || ""
+  ]);
+
+  return output({ ok: true, slug: slug }, callback);
+}
+
+function getAlbum(e, callback) {
+  const slug = e.parameter.slug || "yamada1000";
+  const sheet = SpreadsheetApp.openById(SPREADSHEET_ID).getSheetByName(SHEET_NAME);
+  const values = sheet.getDataRange().getValues();
+  const headers = values[0];
+
+  const albums = values.slice(1).map(row => {
+    const album = {};
+    headers.forEach((h, i) => album[h] = row[i]);
+    return album;
+  });
+
+  const album = albums.find(a => String(a.slug) === String(slug));
+
+  if (!album) {
+    return output({ error: "album not found" }, callback);
+  }
+
+  const folder = DriveApp.getFolderById(album.folderId);
+  const files = folder.getFiles();
+  const photos = [];
+
+  while (files.hasNext()) {
+    const file = files.next();
+    const id = file.getId();
+
+    photos.push({
+      name: file.getName(),
+      imageUrl: "https://drive.google.com/thumbnail?id=" + id + "&sz=w1000",
+      largeUrl: "https://drive.google.com/thumbnail?id=" + id + "&sz=w2000",
+      mobileUrl: "https://drive.google.com/thumbnail?id=" + id + "&sz=w1600",
+      downloadUrl: "https://drive.google.com/file/d/" + id + "/view?usp=drivesdk"
+    });
+  }
+
+  return output({
+    slug: album.slug,
+    title: album.title,
+    shootDate: album.shootDate,
+    limitDate: album.limitDate,
+    folderId: album.folderId,
+    password: album.password,
+    photos: photos
+  }, callback);
+}
+
+function output(data, callback) {
+  const json = JSON.stringify(data);
+  if (callback) {
+    return ContentService
+      .createTextOutput(callback + "(" + json + ");")
+      .setMimeType(ContentService.MimeType.JAVASCRIPT);
+  }
+  return ContentService
+    .createTextOutput(json)
+    .setMimeType(ContentService.MimeType.JSON);
+}

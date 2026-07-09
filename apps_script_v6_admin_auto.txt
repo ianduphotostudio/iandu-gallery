@@ -1,0 +1,165 @@
+const SPREADSHEET_ID = "ここにスプレッドシートIDを省略なしで入れる";
+const SHEET_NAME = "Plain text i&u online album管理表";
+const ADMIN_KEY = "iu2026";
+
+function doGet(e) {
+  const action = e.parameter.action || "album";
+  const callback = e.parameter.callback;
+
+  if (action === "add") return addAlbum(e, callback);
+  if (action === "list") return listAlbums(e, callback);
+  if (action === "update") return updateAlbum(e, callback);
+  if (action === "delete") return deleteAlbum(e, callback);
+
+  return getAlbum(e, callback);
+}
+
+function getSheet() {
+  return SpreadsheetApp.openById(SPREADSHEET_ID).getSheetByName(SHEET_NAME);
+}
+
+function requireAdmin(e, callback) {
+  if (e.parameter.key !== ADMIN_KEY) {
+    return output({ ok: false, error: "管理キーが違います" }, callback);
+  }
+  return null;
+}
+
+function ensureHeaders() {
+  const sheet = getSheet();
+  const headers = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0];
+  const needed = ["slug","title","shootDate","limitDate","folderId","password","customer","type"];
+  needed.forEach(h => {
+    if (!headers.includes(h)) {
+      sheet.getRange(1, sheet.getLastColumn() + 1).setValue(h);
+      headers.push(h);
+    }
+  });
+  return headers;
+}
+
+function getRows() {
+  const sheet = getSheet();
+  const values = sheet.getDataRange().getValues();
+  const headers = values[0];
+  const rows = values.slice(1).map((row, idx) => {
+    const album = { rowNumber: idx + 2 };
+    headers.forEach((h, i) => album[h] = row[i]);
+    return album;
+  });
+  return { sheet, headers, rows };
+}
+
+function writeByHeaders(rowNumber, data) {
+  const sheet = getSheet();
+  const headers = ensureHeaders();
+  headers.forEach((h, i) => {
+    if (data[h] !== undefined) sheet.getRange(rowNumber, i + 1).setValue(data[h]);
+  });
+}
+
+function appendByHeaders(data) {
+  const sheet = getSheet();
+  const headers = ensureHeaders();
+  const row = headers.map(h => data[h] || "");
+  sheet.appendRow(row);
+}
+
+function addAlbum(e, callback) {
+  const auth = requireAdmin(e, callback);
+  if (auth) return auth;
+  const slug = e.parameter.slug;
+  if (!slug) return output({ ok: false, error: "slugがありません" }, callback);
+  ensureHeaders();
+  const { rows } = getRows();
+  if (rows.some(r => String(r.slug) === String(slug))) {
+    return output({ ok: false, error: "同じslugがすでにあります" }, callback);
+  }
+  appendByHeaders({
+    slug: slug,
+    title: e.parameter.title || "",
+    shootDate: e.parameter.shootDate || "",
+    limitDate: e.parameter.limitDate || "",
+    folderId: e.parameter.folderId || "",
+    password: e.parameter.password || "",
+    customer: e.parameter.customer || "",
+    type: e.parameter.type || ""
+  });
+  return output({ ok: true, slug: slug }, callback);
+}
+
+function listAlbums(e, callback) {
+  const auth = requireAdmin(e, callback);
+  if (auth) return auth;
+  ensureHeaders();
+  const { rows } = getRows();
+  const albums = rows.filter(r => r.slug).map(r => {
+    delete r.rowNumber;
+    return r;
+  });
+  return output({ ok: true, albums: albums }, callback);
+}
+
+function updateAlbum(e, callback) {
+  const auth = requireAdmin(e, callback);
+  if (auth) return auth;
+  const slug = e.parameter.slug;
+  ensureHeaders();
+  const { rows } = getRows();
+  const album = rows.find(r => String(r.slug) === String(slug));
+  if (!album) return output({ ok: false, error: "アルバムが見つかりません" }, callback);
+  writeByHeaders(album.rowNumber, {
+    title: e.parameter.title || album.title,
+    folderId: e.parameter.folderId || album.folderId,
+    password: e.parameter.password || album.password,
+    limitDate: e.parameter.limitDate || album.limitDate,
+    customer: e.parameter.customer || album.customer,
+    type: e.parameter.type || album.type
+  });
+  return output({ ok: true, slug: slug }, callback);
+}
+
+function deleteAlbum(e, callback) {
+  const auth = requireAdmin(e, callback);
+  if (auth) return auth;
+  const slug = e.parameter.slug;
+  ensureHeaders();
+  const { sheet, rows } = getRows();
+  const album = rows.find(r => String(r.slug) === String(slug));
+  if (!album) return output({ ok: false, error: "アルバムが見つかりません" }, callback);
+  sheet.deleteRow(album.rowNumber);
+  return output({ ok: true, slug: slug }, callback);
+}
+
+function getAlbum(e, callback) {
+  const slug = e.parameter.slug || "yamada1000";
+  ensureHeaders();
+  const { rows } = getRows();
+  const album = rows.find(a => String(a.slug) === String(slug));
+  if (!album) return output({ error: "album not found" }, callback);
+  const folder = DriveApp.getFolderById(album.folderId);
+  const files = folder.getFiles();
+  const photos = [];
+  while (files.hasNext()) {
+    const file = files.next();
+    const id = file.getId();
+    photos.push({
+      name: file.getName(),
+      imageUrl: "https://drive.google.com/thumbnail?id=" + id + "&sz=w1000",
+      largeUrl: "https://drive.google.com/thumbnail?id=" + id + "&sz=w2000",
+      mobileUrl: "https://drive.google.com/thumbnail?id=" + id + "&sz=w1600",
+      downloadUrl: "https://drive.google.com/file/d/" + id + "/view?usp=drivesdk"
+    });
+  }
+  delete album.rowNumber;
+  album.photos = photos;
+  return output(album, callback);
+}
+
+function output(data, callback) {
+  const json = JSON.stringify(data);
+  if (callback) {
+    return ContentService.createTextOutput(callback + "(" + json + ");").setMimeType(ContentService.MimeType.JAVASCRIPT);
+  }
+  return ContentService.createTextOutput(json).setMimeType(ContentService.MimeType.JSON);
+}

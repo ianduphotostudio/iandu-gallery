@@ -1,0 +1,1 @@
+管理画面Pro v1。apps_script_pro_admin.txt のコードをApps Scriptへ貼って再デプロイしてください。Cloudflareにはhtml/css/js/logoをアップロードします。
