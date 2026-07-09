@@ -1,24 +1,8 @@
-# i&u Online Album Pro
+# iandu-gallery 完成版
 
-i&u photo studio専用オンラインアルバムです。
-
-## GitHubに入れるファイル
-
-- index.html
-- admin.html
-- style.css
-- script.js
-- admin.js
-- logo.jpeg
-- apps_script_v4_list.txt
-
-## Cloudflare Pages設定
-
-- Framework preset: None
-- Build command: 空欄
-- Build output directory: /
-
-## Apps Script
-
-apps_script_v4_list.txt の中身をGoogle Apps Scriptへ貼り付けて使います。
-SPREADSHEET_ID は自分のスプレッドシートIDに変更してください。
+1. apps_script_complete.txt をApps Scriptに貼り替え
+2. SPREADSHEET_ID を変更
+3. デプロイしてWebアプリURL取得
+4. index.html と admin.html の PASTE_APPS_SCRIPT_WEB_APP_URL_HERE をURLに置換
+5. GitHubへアップロード
+6. Cloudflare Pagesで公開
